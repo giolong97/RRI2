@@ -1,7 +1,7 @@
 clear; close all; clc; svflg = 0;
 
 %% Paths
-inpath  = 'G:\SenzaTelo\pomeriggio\';
+inpath  = 'cc';
 outpath = 'C:\Users\Utente\Documents\RRI2\Loads\database\';
 
 %% Testcase selection
