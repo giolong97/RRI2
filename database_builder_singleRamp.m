@@ -1,8 +1,4 @@
-% ============================================================
-% DATABASE BUILDER RRI2 - SR/DR, FILE SINGOLI
-% ============================================================
-% Usa questo script per file CSV che contengono UNA singola finestra/rampa
-% di acquisizione di durata nominale 60 s.
+% DATABASE BUILDER RRI2 - SR/DR, FILE SINGOLA RAMPA
 %
 % Output:
 %   - una riga per ciascun file analizzato
@@ -13,17 +9,11 @@
 % Convenzione:
 %   - SR/IR: viene analizzato il powertrain indicato da activeSRPowertrain
 %   - DR: vengono analizzati entrambi i rotori
-%
-% Nota:
-%   - T nei CSV è assunta in kgf
-%   - Ct viene calcolato usando T convertita in N
-% ============================================================
 
 clear; close all; clc;
 
-%% ===================== INPUT =================================
-
-D   = 20*0.0254;      % [m] diametro elica
+%% ========================== INPUT =======================================
+D   = 20*0.0254;      
 svflg = true;
 makePlots = true;
 
@@ -32,6 +22,10 @@ makePlots = true;
 % false:
 %   nei casi SR salva solo il canale attivo e riempie il passivo con NaN.
 alwaysComputeBothChannels = true;
+
+sr = 20;     % s/r = metti NaN nel caso SR/IR, sennò cambia sr sotto 
+pw = 2;      % pwt attivo SR/IR: 1 o 2. DR: valore ignorato.
+conf = 'DR';
 
 inpath  = 'E:\APC_Prove\20x13\29_04_26';
 outpath = 'E:\APC_Prove\20x13\Analisi\database_29_04_26\';
@@ -71,27 +65,6 @@ cases.filename = [
     "APC_20x13_DR_RPM4500_SR20.csv"
 ];
 
-% cases.conf = [
-%     "IR"
-%     "IR"
-%     "IR"
-%     "IR"
-%     "IR"
-%     "IR"
-%     "IR"
-%     "IR"
-% ];
-
-cases.conf = [
-    "DR"
-    "DR"
-    "DR"
-    "DR"
-    "DR"
-    "DR"
-    "DR"
-    "DR"
-];
 
 cases.RPM_target = [
     1000
@@ -104,46 +77,18 @@ cases.RPM_target = [
     4500
 ];
 
+if strcmp(conf, 'DR')
+    cases.conf = repmat("DR",length(cases.filename), 1);
+elseif strcmp(conf, 'SR') || strcmp(conf, 'IR')
+    cases.conf = repmat("IR",length(cases.filename), 1);
+end
+
 % SR/IR: 1 o 2. DR: valore ignorato.
-cases.activeSRPowertrain = [
-    2
-    2
-    2
-    2
-    2
-    2
-    2
-    2
-];
-
-% cases.s_over_R = [
-%     NaN
-%     NaN
-%     NaN
-%     NaN
-%     NaN
-%     NaN
-%     NaN
-%     NaN
-% ];
-
-sr = 20;
+cases.activeSRPowertrain = pw*ones((length(cases.filename)),1);
 cases.s_over_R = sr*ones((length(cases.activeSRPowertrain)),1);
 
-% Se vuoi forzare tu l'inizio finestra, metti qui il tempo in secondi.
-% Se lasci NaN, viene usato windowStartMode.
-cases.t_start_s = [
-    NaN
-    NaN
-    NaN
-    NaN
-    NaN
-    NaN
-    NaN
-    NaN
-];
 
-%% ===================== OUTLIER DETECTION =====================
+%% Outilier detection
 
 % Gli outlier vengono sostituiti con NaN.
 % Nessuna interpolazione.
@@ -165,7 +110,7 @@ outlierOpts_T   = baseOutlierOpts;
 outlierOpts_Q   = baseOutlierOpts;
 outlierOpts_RPM = baseOutlierOpts;
 
-%% ===================== WINDOW SETTINGS =======================
+%% Finestra di filtraggio
 
 sampleDuration = 60;       % [s]
 settleTime     = 0;        % [s]
@@ -174,7 +119,7 @@ avgDuration    = sampleDuration - settleTime;
 % "firstCommand", "maxPWM", "fromFileStart", "manual"
 windowStartMode = "maxPWM";
 
-%% ===================== PHYSICAL PARAMETERS ===================
+%% Paramentri fisici
 
 rho = 1.225;          % [kg/m^3]
 kgf2N = 9.80665;
@@ -187,7 +132,7 @@ rpmCoeffPolicy = "targetIfBad";
 rpmBadTolAbs = 100;      % [rpm]
 rpmBadTolRel = 0.05;     % [-]
 
-%% ===================== CSV COLUMNS ===========================
+%% Colonne CSV
 
 if ~exist(outpath, 'dir')
     mkdir(outpath);
@@ -216,7 +161,7 @@ col.V2   = 18;
 col.A2   = 19;
 col.rpm2 = 20;   % [RPM]
 
-%% ===================== MAIN ==================================
+%% ============================ MAIN ======================================
 
 cases = normalizeCasesTable(cases);
 
@@ -271,12 +216,7 @@ for ic = 1:height(cases)
 
     rpmTarget = cases.RPM_target(ic);
 
-    tStart = cases.t_start_s(ic);
-
-    if isnan(tStart)
-        tStart = detectWindowStart(t, data, col, nRotors, activeSRPowertrain, windowStartMode);
-    end
-
+    tStart = detectWindowStart(t, data, col, nRotors, activeSRPowertrain, windowStartMode);
     tAvgStart = tStart + settleTime;
     tAvgEnd   = tAvgStart + avgDuration;
 
@@ -306,12 +246,6 @@ for ic = 1:height(cases)
     row.settleTime_s = settleTime;
     row.N_samples_window = sum(idx);
     row.windowStartMode = string(windowStartMode);
-
-    % PWM diagnostici
-    row.PWM1_start_us = valueAtOrAfter(t, getColumn(data,col.pwm1), tStart);
-    row.PWM2_start_us = valueAtOrAfter(t, getColumn(data,col.pwm2), tStart);
-    row.PWM1_mean_us  = mean(getColumn(data,col.pwm1,idx), 'omitnan');
-    row.PWM2_mean_us  = mean(getColumn(data,col.pwm2,idx), 'omitnan');
 
     % ============================================================
     % Decide quali rotori calcolare
@@ -394,7 +328,7 @@ for ic = 1:height(cases)
     end
 
     % ============================================================
-    % Campi combinati DR - inizializzati sempre
+    % Grandezze combinate DR 
     % ============================================================
 
     row.T_total_N = NaN;
@@ -509,7 +443,8 @@ for ic = 1:height(cases)
     end
 
     rowTable = struct2table(row);
-
+    
+    %Se il database è vuoto, crealo con questa riga. Se esiste già, attacca la nuova riga in fondo
     if isempty(DB)
         DB = rowTable;
     else
