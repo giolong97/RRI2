@@ -14,7 +14,7 @@ clear; close all; clc;
 
 %% ========================== INPUT =======================================
 D   = 20*0.0254;      
-svflg = true;
+svflg = false;
 makePlots = true;
 
 % true:
@@ -110,6 +110,18 @@ outlierOpts_T   = baseOutlierOpts;
 outlierOpts_Q   = baseOutlierOpts;
 outlierOpts_RPM = baseOutlierOpts;
 
+%% Tare / zero correction
+
+applyTareCorrection = true;
+
+tareWindow_s = 0.80;      % usa 0.8 s su 1 s disponibile
+tareGuard_s  = 0.05;      % evita i bordi del file
+
+tareRPMmax = 30;          % [rpm] soglia motore spento
+tarePWMmax = 1000;        % [us] modifica se il tuo minimo non è 1100
+
+tareUseEndZero = true;    % usa anche lo zero finale
+
 %% Finestra di filtraggio
 
 sampleDuration = 60;       % [s]
@@ -160,6 +172,7 @@ col.Q2   = 17;   % [Nm]
 col.V2   = 18;
 col.A2   = 19;
 col.rpm2 = 20;   % [RPM]
+
 
 %% ============================ MAIN ======================================
 
@@ -443,7 +456,7 @@ for ic = 1:height(cases)
     end
 
     rowTable = struct2table(row);
-    
+
     %Se il database è vuoto, crealo con questa riga. Se esiste già, attacca la nuova riga in fondo
     if isempty(DB)
         DB = rowTable;

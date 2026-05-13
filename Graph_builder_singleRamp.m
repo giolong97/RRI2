@@ -22,7 +22,7 @@ clear; close all; clc;
 D   = 20*0.0254;      % [m]
 T_C = 23.2;           % [degC]
 
-basepath = 'E:\APC_Prove\20x13\Analisi\database_29_04_26\';
+basepath = 'E:\APC_Prove\20x13\Analisi\database_29_04_26_pt2\';
 
 outpath = fullfile(basepath, 'Confronto_SR_DR_singleRamp');
 
@@ -221,6 +221,8 @@ Cq = [];
 T_N = [];
 Q_Nm = [];
 P_W = [];
+P_mech_csv_W = [];     % potenza meccanica letta dal CSV
+P_elec_csv_W = [];     % potenza elettrica letta dal CSV
 
 for i = 1:height(DB_all)
 
@@ -262,6 +264,10 @@ for i = 1:height(DB_all)
             T_N(end+1,1) = getnum(DB_all, i, 'T1_mean_N');
             Q_Nm(end+1,1) = getFirstNum(DB_all, i, {'Q1_abs_mean_Nm','Q1_mean_Nm'});
             P_W(end+1,1) = getnum(DB_all, i, 'P1_mean_W');
+            
+            P_mech_csv_W(end+1,1) = getnum(DB_all, i, 'P1_mech_csv_mean_W');
+            P_elec_csv_W(end+1,1) = getnum(DB_all, i, 'P1_elec_csv_mean_W');
+            
             RPM_used(end+1,1) = getnum(DB_all, i, 'RPM1_used');
 
         elseif rot == 2
@@ -271,6 +277,10 @@ for i = 1:height(DB_all)
             T_N(end+1,1) = getnum(DB_all, i, 'T2_mean_N');
             Q_Nm(end+1,1) = getFirstNum(DB_all, i, {'Q2_abs_mean_Nm','Q2_mean_Nm'});
             P_W(end+1,1) = getnum(DB_all, i, 'P2_mean_W');
+            
+            P_mech_csv_W(end+1,1) = getnum(DB_all, i, 'P2_mech_csv_mean_W');
+            P_elec_csv_W(end+1,1) = getnum(DB_all, i, 'P2_elec_csv_mean_W');
+            
             RPM_used(end+1,1) = getnum(DB_all, i, 'RPM2_used');
 
         end
@@ -280,7 +290,8 @@ for i = 1:height(DB_all)
 end
 
 DATA = table(condition, filename, sourceDB, MP_number, s_over_R, rotorID, ...
-    RPM_target, RPM_used, Ct, Cq, T_N, Q_Nm, P_W);
+    RPM_target, RPM_used, Ct, Cq, T_N, Q_Nm, ...
+    P_W, P_mech_csv_W, P_elec_csv_W);
 
 writetable(DATA, fullfile(outpath, 'DATA_long_singleRamp.csv'));
 
@@ -320,6 +331,8 @@ AVG.Cq       = splitapply(@meanOmitNaN, DATA_valid.Cq, G);
 AVG.T_N      = splitapply(@meanOmitNaN, DATA_valid.T_N, G);
 AVG.Q_Nm     = splitapply(@meanOmitNaN, DATA_valid.Q_Nm, G);
 AVG.P_W      = splitapply(@meanOmitNaN, DATA_valid.P_W, G);
+AVG.P_mech_csv_W = splitapply(@meanOmitNaN, DATA_valid.P_mech_csv_W, G);
+AVG.P_elec_csv_W = splitapply(@meanOmitNaN, DATA_valid.P_elec_csv_W, G);
 AVG.N        = splitapply(@numel, DATA_valid.Ct, G);
 
 AVG = sortrows(AVG, {'condition','s_over_R','rotorID','RPM_target'});
@@ -548,6 +561,229 @@ end
 exportgraphics(fig, fullfile(figpath, '01_Ct_vs_RPMused_single_powertrains.png'), ...
     'Resolution', 300);
 
+%% ===================== PLOT 01b: Cq POWERTRAINS ===============
+
+fig = figure('Color','w','Name','Cq vs RPMused - powertrains');
+tiledlayout(2,1,'Padding','compact','TileSpacing','compact');
+
+for rotID = 1:2
+
+    nexttile;
+    hold on; grid on; box on;
+
+    if rotID == 1
+        SR_curve = SR_PW1_curve;
+        srLabel = 'SR PW1';
+        titleText = '$C_Q$ vs $RPM_{used}$ - PW1/R1';
+    else
+        SR_curve = SR_PW2_curve;
+        srLabel = 'SR PW2';
+        titleText = '$C_Q$ vs $RPM_{used}$ - PW2/R2';
+    end
+
+    if ~isempty(SR_curve)
+        plot(SR_curve.RPM_used, SR_curve.Cq, '-ok', ...
+            'LineWidth', 1.8, ...
+            'MarkerFaceColor','k', ...
+            'DisplayName', srLabel);
+    end
+
+    for isr = 1:numel(sR_values)
+
+        sR = sR_values(isr);
+
+        DR_curve = cleanCurve(AVG(AVG.condition == "DR" & ...
+                                  AVG.s_over_R == sR & ...
+                                  AVG.rotorID == rotID, :));
+
+        if isempty(DR_curve)
+            continue;
+        end
+
+        plot(DR_curve.RPM_used, DR_curve.Cq, '--s', ...
+            'LineWidth', 1.4, ...
+            'MarkerSize', 6, ...
+            'DisplayName', sprintf('DR R%d, s/R = %.3g', rotID, sR));
+
+    end
+
+    xlabel('$RPM_{used}$', 'Interpreter','latex');
+    ylabel('$C_Q$', 'Interpreter','latex');
+    title(titleText, 'Interpreter','latex');
+    legend('Location','best', 'Interpreter','latex');
+
+end
+
+exportgraphics(fig, fullfile(figpath, '01b_Cq_vs_RPMused_single_powertrains.png'), ...
+    'Resolution', 300);
+
+%% ===================== PLOT 01c: P = Q*omega POWERTRAINS ======
+
+fig = figure('Color','w','Name','P Qomega vs RPMused - powertrains');
+tiledlayout(2,1,'Padding','compact','TileSpacing','compact');
+
+for rotID = 1:2
+
+    nexttile;
+    hold on; grid on; box on;
+
+    if rotID == 1
+        SR_curve = SR_PW1_curve;
+        srLabel = 'SR PW1';
+        titleText = '$P = Q\,2\pi n$ vs $RPM_{used}$ - PW1/R1';
+    else
+        SR_curve = SR_PW2_curve;
+        srLabel = 'SR PW2';
+        titleText = '$P = Q\,2\pi n$ vs $RPM_{used}$ - PW2/R2';
+    end
+
+    if ~isempty(SR_curve)
+        plot(SR_curve.RPM_used, SR_curve.P_W, '-ok', ...
+            'LineWidth', 1.8, ...
+            'MarkerFaceColor','k', ...
+            'DisplayName', srLabel);
+    end
+
+    for isr = 1:numel(sR_values)
+
+        sR = sR_values(isr);
+
+        DR_curve = cleanCurve(AVG(AVG.condition == "DR" & ...
+                                  AVG.s_over_R == sR & ...
+                                  AVG.rotorID == rotID, :));
+
+        if isempty(DR_curve)
+            continue;
+        end
+
+        plot(DR_curve.RPM_used, DR_curve.P_W, '--s', ...
+            'LineWidth', 1.4, ...
+            'MarkerSize', 6, ...
+            'DisplayName', sprintf('DR R%d, s/R = %.3g', rotID, sR));
+
+    end
+
+    xlabel('$RPM_{used}$', 'Interpreter','latex');
+    ylabel('$P_{Q\omega}$ [W]', 'Interpreter','latex');
+    title(titleText, 'Interpreter','latex');
+    legend('Location','best', 'Interpreter','latex');
+
+end
+
+exportgraphics(fig, fullfile(figpath, '01c_P_Qomega_vs_RPMused_single_powertrains.png'), ...
+    'Resolution', 300);
+
+%% ===================== PLOT 01d: P MECH CSV POWERTRAINS =======
+
+fig = figure('Color','w','Name','P mech CSV vs RPMused - powertrains');
+tiledlayout(2,1,'Padding','compact','TileSpacing','compact');
+
+for rotID = 1:2
+
+    nexttile;
+    hold on; grid on; box on;
+
+    if rotID == 1
+        SR_curve = SR_PW1_curve;
+        srLabel = 'SR PW1';
+        titleText = '$P_{mech,CSV}$ vs $RPM_{used}$ - PW1/R1';
+    else
+        SR_curve = SR_PW2_curve;
+        srLabel = 'SR PW2';
+        titleText = '$P_{mech,CSV}$ vs $RPM_{used}$ - PW2/R2';
+    end
+
+    if ~isempty(SR_curve)
+        plot(SR_curve.RPM_used, SR_curve.P_mech_csv_W, '-ok', ...
+            'LineWidth', 1.8, ...
+            'MarkerFaceColor','k', ...
+            'DisplayName', srLabel);
+    end
+
+    for isr = 1:numel(sR_values)
+
+        sR = sR_values(isr);
+
+        DR_curve = cleanCurve(AVG(AVG.condition == "DR" & ...
+                                  AVG.s_over_R == sR & ...
+                                  AVG.rotorID == rotID, :));
+
+        if isempty(DR_curve)
+            continue;
+        end
+
+        plot(DR_curve.RPM_used, DR_curve.P_mech_csv_W, '--s', ...
+            'LineWidth', 1.4, ...
+            'MarkerSize', 6, ...
+            'DisplayName', sprintf('DR R%d, s/R = %.3g', rotID, sR));
+
+    end
+
+    xlabel('$RPM_{used}$', 'Interpreter','latex');
+    ylabel('$P_{mech,CSV}$ [W]', 'Interpreter','latex');
+    title(titleText, 'Interpreter','latex');
+    legend('Location','best', 'Interpreter','latex');
+
+end
+
+exportgraphics(fig, fullfile(figpath, '01d_P_mech_CSV_vs_RPMused_single_powertrains.png'), ...
+    'Resolution', 300);
+
+%% ===================== PLOT 01e: P ELEC CSV POWERTRAINS =======
+
+fig = figure('Color','w','Name','P elec CSV vs RPMused - powertrains');
+tiledlayout(2,1,'Padding','compact','TileSpacing','compact');
+
+for rotID = 1:2
+
+    nexttile;
+    hold on; grid on; box on;
+
+    if rotID == 1
+        SR_curve = SR_PW1_curve;
+        srLabel = 'SR PW1';
+        titleText = '$P_{elec,CSV}$ vs $RPM_{used}$ - PW1/R1';
+    else
+        SR_curve = SR_PW2_curve;
+        srLabel = 'SR PW2';
+        titleText = '$P_{elec,CSV}$ vs $RPM_{used}$ - PW2/R2';
+    end
+
+    if ~isempty(SR_curve)
+        plot(SR_curve.RPM_used, SR_curve.P_elec_csv_W, '-ok', ...
+            'LineWidth', 1.8, ...
+            'MarkerFaceColor','k', ...
+            'DisplayName', srLabel);
+    end
+
+    for isr = 1:numel(sR_values)
+
+        sR = sR_values(isr);
+
+        DR_curve = cleanCurve(AVG(AVG.condition == "DR" & ...
+                                  AVG.s_over_R == sR & ...
+                                  AVG.rotorID == rotID, :));
+
+        if isempty(DR_curve)
+            continue;
+        end
+
+        plot(DR_curve.RPM_used, DR_curve.P_elec_csv_W, '--s', ...
+            'LineWidth', 1.4, ...
+            'MarkerSize', 6, ...
+            'DisplayName', sprintf('DR R%d, s/R = %.3g', rotID, sR));
+
+    end
+
+    xlabel('$RPM_{used}$', 'Interpreter','latex');
+    ylabel('$P_{elec,CSV}$ [W]', 'Interpreter','latex');
+    title(titleText, 'Interpreter','latex');
+    legend('Location','best', 'Interpreter','latex');
+
+end
+
+exportgraphics(fig, fullfile(figpath, '01e_P_elec_CSV_vs_RPMused_single_powertrains.png'), ...
+    'Resolution', 300);
 %% ===================== PLOT 02: Ct MEAN =======================
 
 fig = figure('Color','w','Name','Ct vs RPMused - mean case');
@@ -656,212 +892,215 @@ exportgraphics(fig, fullfile(figpath, '03_Ct_SR_DR_exactRPM.png'), ...
 
 %% ===================== PLOT 04: Delta Ct vs RPM ===============
 
-fig = figure('Color','w','Name','Delta Ct exact RPM vs RPM');
-tiledlayout(3,1,'Padding','compact','TileSpacing','compact');
-
-titles = [
-    "$\Delta C_T$ exact RPM - PW1/R1"
-    "$\Delta C_T$ exact RPM - PW2/R2"
-    "$\Delta C_T$ exact RPM - MEAN"
-];
-
-for itype = 1:numel(types)
-
-    nexttile;
-    hold on; grid on; box on;
-
-    type = types(itype);
-    idxType = comparison_exact.comparisonType == type;
-
-    sR_here = unique(comparison_exact.s_over_R(idxType));
-    sR_here = sort(sR_here(isfinite(sR_here)));
-
-    for isr = 1:numel(sR_here)
-
-        sR = sR_here(isr);
-
-        idx = idxType & comparison_exact.s_over_R == sR;
-
-        x = comparison_exact.RPM_common(idx);
-        y = comparison_exact.dCt_percent(idx);
-
-        valid = isfinite(x) & isfinite(y);
-
-        x = x(valid);
-        y = y(valid);
-
-        if isempty(x)
-            continue;
-        end
-
-        [x, ord] = sort(x);
-        y = y(ord);
-
-        plot(x, y, '-o', ...
-            'LineWidth', 1.5, ...
-            'MarkerSize', 6, ...
-            'DisplayName', sprintf('s/R = %.3g', sR));
-
-    end
-
-    yline(0, '--k', 'HandleVisibility','off');
-
-    xlabel('$RPM_{common}$', 'Interpreter','latex');
-    ylabel('$\Delta C_T$ [\%]', 'Interpreter','latex');
-    title(titles(itype), 'Interpreter','latex');
-    legend('Location','best', 'Interpreter','latex');
-
-end
-
-exportgraphics(fig, fullfile(figpath, '04_DeltaCt_exactRPM_vs_RPM.png'), ...
-    'Resolution', 300);
-
-%% ===================== PLOT 05: Delta Ct vs s/R ===============
-
-fig = figure('Color','w','Name','Delta Ct exact RPM vs s/R');
-tiledlayout(3,1,'Padding','compact','TileSpacing','compact');
-
-titles = [
-    "$\Delta C_T$ exact RPM vs $s/R$ - PW1/R1"
-    "$\Delta C_T$ exact RPM vs $s/R$ - PW2/R2"
-    "$\Delta C_T$ exact RPM vs $s/R$ - MEAN"
-];
-
-for itype = 1:numel(types)
-
-    nexttile;
-    hold on; grid on; box on;
-
-    type = types(itype);
-    idxType = comparison_exact.comparisonType == type;
-
-    rpmTargets = unique(comparison_exact.RPM_target(idxType));
-    rpmTargets = sort(rpmTargets(isfinite(rpmTargets)));
-
-    for irpm = 1:numel(rpmTargets)
-
-        rpmT = rpmTargets(irpm);
-
-        idx = idxType & comparison_exact.RPM_target == rpmT;
-
-        x = comparison_exact.s_over_R(idx);
-        y = comparison_exact.dCt_percent(idx);
-
-        valid = isfinite(x) & isfinite(y);
-
-        x = x(valid);
-        y = y(valid);
-
-        if isempty(x)
-            continue;
-        end
-
-        [x, ord] = sort(x);
-        y = y(ord);
-
-        plot(x, y, '-o', ...
-            'LineWidth', 1.5, ...
-            'MarkerSize', 6, ...
-            'DisplayName', sprintf('%d RPM target', rpmT));
-
-    end
-
-    yline(0, '--k', 'HandleVisibility','off');
-
-    xlabel('$s/R$', 'Interpreter','latex');
-    ylabel('$\Delta C_T$ [\%]', 'Interpreter','latex');
-    title(titles(itype), 'Interpreter','latex');
-    legend('Location','best', 'Interpreter','latex');
-
-end
-
-exportgraphics(fig, fullfile(figpath, '05_DeltaCt_exactRPM_vs_sR.png'), ...
-    'Resolution', 300);
-
-%% ===================== PLOTS 06-08: Selected types ============
-
-selectedTypes = ["PW1", "PW2", "MEAN"];
-fileNums = [6 7 8];
-
-for itype = 1:numel(selectedTypes)
-
-    selectedType = selectedTypes(itype);
-
-    fig = figure('Color','w','Name',sprintf('Delta Ct exact RPM %s', selectedType));
-    hold on; grid on; box on;
-
-    idxType = comparison_exact.comparisonType == selectedType;
-
-    sR_here = unique(comparison_exact.s_over_R(idxType));
-    sR_here = sort(sR_here(isfinite(sR_here)));
-
-    for isr = 1:numel(sR_here)
-
-        sR = sR_here(isr);
-
-        idx = idxType & comparison_exact.s_over_R == sR;
-
-        x = comparison_exact.RPM_common(idx);
-        y = comparison_exact.dCt_percent(idx);
-
-        valid = isfinite(x) & isfinite(y);
-
-        x = x(valid);
-        y = y(valid);
-
-        if isempty(x)
-            continue;
-        end
-
-        [x, ord] = sort(x);
-        y = y(ord);
-
-        plot(x, y, '-o', ...
-            'LineWidth', 1.5, ...
-            'MarkerSize', 6, ...
-            'DisplayName', sprintf('s/R = %.3g', sR));
-
-    end
-
-    yline(0, '--k', 'HandleVisibility','off');
-
-    xlabel('$RPM_{common}$', 'Interpreter','latex');
-    ylabel('$\Delta C_T$ [\%]', 'Interpreter','latex');
-    title(sprintf('$\\Delta C_T$ exact RPM - %s', selectedType), ...
-        'Interpreter','latex');
-    legend('Location','best', 'Interpreter','latex');
-
-    outName = sprintf('%02d_DeltaCt_exactRPM_%s_vs_RPM.png', ...
-        fileNums(itype), char(selectedType));
-
-    exportgraphics(fig, fullfile(figpath, outName), 'Resolution', 300);
-
-end
-
-%% ===================== PLOT 09: Reynolds ======================
-
-fig = figure('Color','w','Name','Reynolds vs RPM');
-hold on; grid on; box on;
-
-rpmGrid = unique(comparison_exact.RPM_common);
-rpmGrid = sort(rpmGrid(isfinite(rpmGrid)));
-
-Omega = 2*pi*rpmGrid/60;
-Re_R = Omega * R^2 / nu;
-
-plot(rpmGrid, Re_R, '-o', ...
-    'LineWidth', 1.6, ...
-    'DisplayName','$Re_R = \Omega R^2/\nu$');
-
-xlabel('$RPM_{common}$', 'Interpreter','latex');
-ylabel('$Re_R$', 'Interpreter','latex');
-title('Reynolds number at comparison RPM', 'Interpreter','latex');
-legend('Location','best', 'Interpreter','latex');
-
-exportgraphics(fig, fullfile(figpath, '09_Reynolds_vs_RPMcommon.png'), ...
-    'Resolution', 300);
-
-disp('Exact-RPM single-ramp SR/DR analysis completed.');
+% fig = figure('Color','w','Name','Delta Ct exact RPM vs RPM');
+% tiledlayout(3,1,'Padding','compact','TileSpacing','compact');
+% 
+% titles = [
+%     "$\Delta C_T$ exact RPM - PW1/R1"
+%     "$\Delta C_T$ exact RPM - PW2/R2"
+%     "$\Delta C_T$ exact RPM - MEAN"
+% ];
+% 
+% for itype = 1:numel(types)
+% 
+%     nexttile;
+%     hold on; grid on; box on;
+% 
+%     type = types(itype);
+%     idxType = comparison_exact.comparisonType == type;
+% 
+%     sR_here = unique(comparison_exact.s_over_R(idxType));
+%     sR_here = sort(sR_here(isfinite(sR_here)));
+% 
+%     for isr = 1:numel(sR_here)
+% 
+%         sR = sR_here(isr);
+% 
+%         idx = idxType & comparison_exact.s_over_R == sR;
+% 
+%         x = comparison_exact.RPM_common(idx);
+%         y = comparison_exact.dCt_percent(idx);
+% 
+%         valid = isfinite(x) & isfinite(y);
+% 
+%         x = x(valid);
+%         y = y(valid);
+% 
+%         if isempty(x)
+%             continue;
+%         end
+% 
+%         [x, ord] = sort(x);
+%         y = y(ord);
+% 
+%         plot(x, y, '-o', ...
+%             'LineWidth', 1.5, ...
+%             'MarkerSize', 6, ...
+%             'DisplayName', sprintf('s/R = %.3g', sR));
+% 
+%     end
+% 
+%     yline(0, '--k', 'HandleVisibility','off');
+% 
+%     xlabel('$RPM_{common}$', 'Interpreter','latex');
+%     ylabel('$\Delta C_T$ [\%]', 'Interpreter','latex');
+%     title(titles(itype), 'Interpreter','latex');
+%     legend('Location','best', 'Interpreter','latex');
+% 
+% end
+% 
+% exportgraphics(fig, fullfile(figpath, '04_DeltaCt_exactRPM_vs_RPM.png'), ...
+%     'Resolution', 300);
+% 
+% %% ===================== PLOT 05: Delta Ct vs s/R ===============
+% 
+% fig = figure('Color','w','Name','Delta Ct exact RPM vs s/R');
+% tiledlayout(3,1,'Padding','compact','TileSpacing','compact');
+% 
+% titles = [
+%     "$\Delta C_T$ exact RPM vs $s/R$ - PW1/R1"
+%     "$\Delta C_T$ exact RPM vs $s/R$ - PW2/R2"
+%     "$\Delta C_T$ exact RPM vs $s/R$ - MEAN"
+% ];
+% 
+% for itype = 1:numel(types)
+% 
+%     nexttile;
+%     hold on; grid on; box on;
+% 
+%     type = types(itype);
+%     idxType = comparison_exact.comparisonType == type;
+% 
+%     rpmTargets = unique(comparison_exact.RPM_target(idxType));
+%     rpmTargets = sort(rpmTargets(isfinite(rpmTargets)));
+% 
+%     for irpm = 1:numel(rpmTargets)
+% 
+%         rpmT = rpmTargets(irpm);
+% 
+%         idx = idxType & comparison_exact.RPM_target == rpmT;
+% 
+%         x = comparison_exact.s_over_R(idx);
+%         y = comparison_exact.dCt_percent(idx);
+% 
+%         valid = isfinite(x) & isfinite(y);
+% 
+%         x = x(valid);
+%         y = y(valid);
+% 
+%         if isempty(x)
+%             continue;
+%         end
+% 
+%         [x, ord] = sort(x);
+%         y = y(ord);
+% 
+%         plot(x, y, '-o', ...
+%             'LineWidth', 1.5, ...
+%             'MarkerSize', 6, ...
+%             'DisplayName', sprintf('%d RPM target', rpmT));
+% 
+%     end
+% 
+%     yline(0, '--k', 'HandleVisibility','off');
+% 
+%     xlabel('$s/R$', 'Interpreter','latex');
+%     ylabel('$\Delta C_T$ [\%]', 'Interpreter','latex');
+%     title(titles(itype), 'Interpreter','latex');
+%     legend('Location','best', 'Interpreter','latex');
+% 
+% end
+% 
+% exportgraphics(fig, fullfile(figpath, '05_DeltaCt_exactRPM_vs_sR.png'), ...
+%     'Resolution', 300);
+% 
+% %% ===================== PLOTS 06-08: Selected types ============
+% 
+% selectedTypes = ["PW1", "PW2", "MEAN"];
+% fileNums = [6 7 8];
+% 
+% for itype = 1:numel(selectedTypes)
+% 
+%     selectedType = selectedTypes(itype);
+% 
+%     fig = figure('Color','w','Name',sprintf('Delta Ct exact RPM %s', selectedType));
+%     hold on; grid on; box on;
+% 
+%     idxType = comparison_exact.comparisonType == selectedType;
+% 
+%     sR_here = unique(comparison_exact.s_over_R(idxType));
+%     sR_here = sort(sR_here(isfinite(sR_here)));
+% 
+%     for isr = 1:numel(sR_here)
+% 
+%         sR = sR_here(isr);
+% 
+%         idx = idxType & comparison_exact.s_over_R == sR;
+% 
+%         x = comparison_exact.RPM_common(idx);
+%         y = comparison_exact.dCt_percent(idx);
+% 
+%         valid = isfinite(x) & isfinite(y);
+% 
+%         x = x(valid);
+%         y = y(valid);
+% 
+%         if isempty(x)
+%             continue;
+%         end
+% 
+%         [x, ord] = sort(x);
+%         y = y(ord);
+% 
+%         plot(x, y, '-o', ...
+%             'LineWidth', 1.5, ...
+%             'MarkerSize', 6, ...
+%             'DisplayName', sprintf('s/R = %.3g', sR));
+% 
+%     end
+% 
+%     yline(0, '--k', 'HandleVisibility','off');
+% 
+%     xlabel('$RPM_{common}$', 'Interpreter','latex');
+%     ylabel('$\Delta C_T$ [\%]', 'Interpreter','latex');
+%     title(sprintf('$\\Delta C_T$ exact RPM - %s', selectedType), ...
+%         'Interpreter','latex');
+%     legend('Location','best', 'Interpreter','latex');
+% 
+%     outName = sprintf('%02d_DeltaCt_exactRPM_%s_vs_RPM.png', ...
+%         fileNums(itype), char(selectedType));
+% 
+%     exportgraphics(fig, fullfile(figpath, outName), 'Resolution', 300);
+% 
+% end
+% 
+% %% ===================== PLOT 09: Reynolds ======================
+% 
+% fig = figure('Color','w','Name','Reynolds vs RPM');
+% hold on; grid on; box on;
+% 
+% rpmGrid = unique(comparison_exact.RPM_common);
+% rpmGrid = sort(rpmGrid(isfinite(rpmGrid)));
+% 
+% Omega = 2*pi*rpmGrid/60;
+% Re_R = Omega * R^2 / nu;
+% 
+% plot(rpmGrid, Re_R, '-o', ...
+%     'LineWidth', 1.6, ...
+%     'DisplayName','$Re_R = \Omega R^2/\nu$');
+% 
+% xlabel('$RPM_{common}$', 'Interpreter','latex');
+% ylabel('$Re_R$', 'Interpreter','latex');
+% title('Reynolds number at comparison RPM', 'Interpreter','latex');
+% legend('Location','best', 'Interpreter','latex');
+% 
+% exportgraphics(fig, fullfile(figpath, '09_Reynolds_vs_RPMcommon.png'), ...
+%     'Resolution', 300);
+% 
+% disp('Exact-RPM single-ramp SR/DR analysis completed.');
+
+
+%% plot 10 potenza meccanica vs potenza=Q*w
 
 %% FUNZIONI
 function T = readDatabaseCSV(fpath)
@@ -990,7 +1229,8 @@ function curve = cleanCurve(T)
         return;
     end
 
-    neededVars = {'RPM_target','RPM_used','Ct','Cq','T_N','Q_Nm','P_W'};
+    neededVars = {'RPM_target','RPM_used','Ct','Cq','T_N','Q_Nm', ...
+                  'P_W','P_mech_csv_W','P_elec_csv_W'};
 
     for k = 1:numel(neededVars)
         var = neededVars{k};
@@ -1019,6 +1259,8 @@ function curve = cleanCurve(T)
     curve.T_N = splitapply(@meanOmitNaN, T.T_N, G);
     curve.Q_Nm = splitapply(@meanOmitNaN, T.Q_Nm, G);
     curve.P_W = splitapply(@meanOmitNaN, T.P_W, G);
+    curve.P_mech_csv_W = splitapply(@meanOmitNaN, T.P_mech_csv_W, G);
+    curve.P_elec_csv_W = splitapply(@meanOmitNaN, T.P_elec_csv_W, G);
 
 end
 
@@ -1039,6 +1281,8 @@ function curve = makeMeanCurve(T1, T2)
     T_N = [];
     Q_Nm = [];
     P_W = [];
+    P_mech_csv_W = [];
+    P_elec_csv_W = [];
 
     for i = 1:numel(targets)
 
@@ -1070,9 +1314,18 @@ function curve = makeMeanCurve(T1, T2)
             getAtTarget(T1, rpmT, 'P_W')
             getAtTarget(T2, rpmT, 'P_W')]);
 
+        P_mech_csv_W(end+1,1) = meanOmitNaN([
+            getAtTarget(T1, rpmT, 'P_mech_csv_W')
+            getAtTarget(T2, rpmT, 'P_mech_csv_W')]);
+        
+        P_elec_csv_W(end+1,1) = meanOmitNaN([
+            getAtTarget(T1, rpmT, 'P_elec_csv_W')
+            getAtTarget(T2, rpmT, 'P_elec_csv_W')]);
+
     end
 
-    curve = table(RPM_target, RPM_used, Ct, Cq, T_N, Q_Nm, P_W);
+    curve = table(RPM_target, RPM_used, Ct, Cq, T_N, Q_Nm, ...
+                  P_W, P_mech_csv_W, P_elec_csv_W);
     curve = cleanCurve(curve);
 
 end
