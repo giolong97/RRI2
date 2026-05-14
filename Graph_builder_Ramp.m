@@ -10,7 +10,7 @@ clear; close all; clc;
 
 %% Input
 
-basepath = 'E:\APC_Prove\16x4\Analisi\database_06_05_26\';
+basepath = 'E:\APC_Prove\16x10\Analisi\database_04_05_26_pt2\';
 
 % ============================================================
 % Qui scegli quali MP leggere, mantenendo questo ordine:
@@ -31,7 +31,7 @@ basepath = 'E:\APC_Prove\16x4\Analisi\database_06_05_26\';
 % Es: MP_numbers = [1 2 3 4 5 6 7 8 0 10 11 12]; 
 % ============================================================
 
-MP_numbers = [233 234 235 236 237 238 239 240 241 242 243 244];
+MP_numbers = [220 222 223 224 225 226 227 228 229 0 231 232];
 
 % Valori di s/R nell'ordine delle coppie DR:
 % coppia 1 -> DR_up_sR1, DR_dw_sR1
@@ -175,6 +175,11 @@ SR.Q_SR_ref_std_Nm = rowMeanOmitNaN([SR.Q_E_SR_std_Nm, SR.Q_EP_SR_std_Nm]);
 sR_values = unique(DR_mean.s_over_R);
 sR_values = sR_values(~isnan(sR_values));
 sR_values = sort(sR_values);
+
+% Confronto SR/DR interpolato a RPM comune effettivo.
+% RPM_common = 0.5*(RPM_SR_used_nominal + RPM_DR_used_nominal)
+comparison_exactRPM = buildExactRPMComparison( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values);
 
 comparison = table();
 
@@ -424,6 +429,8 @@ writetable(DR_mean,    fullfile(outpath, 'DR_mean_up_down.csv'));
 writetable(SR, fullfile(outpath, 'SR_reference.csv'));
 writetable(comparison, fullfile(outpath, 'comparison_SR_DR_vs_sR.csv'));
 
+writetable(comparison_exactRPM, fullfile(outpath, 'comparison_SR_DR_exactRPM.csv'));
+
 % Salvataggio MATLAB completo
 save(fullfile(outpath, 'analysis_SR_DR.mat'), ...
     'inputDB', 'DB_all', ...
@@ -433,7 +440,7 @@ save(fullfile(outpath, 'analysis_SR_DR.mat'), ...
     'E_SR_mean', 'EP_SR_mean', 'DR_mean', ...
     'drift_E_SR', 'drift_EP_SR', 'drift_DR', ...
     'rho', 'D', 'R', 'T_C', 'Tair', 'mu', 'nu', ...
-    'rpmAll', 'sR_values');
+    'rpmAll', 'sR_values','comparison_exactRPM');
 
 disp('Tables saved.');
 
@@ -446,27 +453,27 @@ if ~exist(figpath, 'dir')
 end
 
 %% 1) E_SR: Ct up/down + drift
-plotSRUpDownAndDriftCt( ...
-    E_SR_dir, drift_E_SR, ...
-    'E\_SR', ...
-    fullfile(figpath, '01_E_SR_Ct_up_down_drift.png'), ...
-    showUncertaintyBands, uncertaintyBandAlpha);
+% plotSRUpDownAndDriftCt( ...
+%     E_SR_dir, drift_E_SR, ...
+%     'E\_SR', ...
+%     fullfile(figpath, '01_E_SR_Ct_up_down_drift.png'), ...
+%     showUncertaintyBands, uncertaintyBandAlpha);
 %% 2) EP_SR: Ct up/down + drift
-plotSRUpDownAndDriftCt( ...
-    EP_SR_dir, drift_EP_SR, ...
-    'EP\_SR', ...
-    fullfile(figpath, '02_EP_SR_Ct_up_down_drift.png'), ...
-    showUncertaintyBands, uncertaintyBandAlpha);
+% plotSRUpDownAndDriftCt( ...
+%     EP_SR_dir, drift_EP_SR, ...
+%     'EP\_SR', ...
+%     fullfile(figpath, '02_EP_SR_Ct_up_down_drift.png'), ...
+%     showUncertaintyBands, uncertaintyBandAlpha);
 %% 3) DR: Ct up/down + drift per rot 1 e rot 2
-plotDRRotorUpDownAndDriftCt( ...
-    DR_dir, drift_DR, 1, ...
-    fullfile(figpath, '03_DR_R1'), ...
-    showUncertaintyBands, uncertaintyBandAlpha);
-
-plotDRRotorUpDownAndDriftCt( ...
-    DR_dir, drift_DR, 2, ...
-    fullfile(figpath, '04_DR_R2'), ...
-    showUncertaintyBands, uncertaintyBandAlpha);
+% plotDRRotorUpDownAndDriftCt( ...
+%     DR_dir, drift_DR, 1, ...
+%     fullfile(figpath, '03_DR_R1'), ...
+%     showUncertaintyBands, uncertaintyBandAlpha);
+% 
+% plotDRRotorUpDownAndDriftCt( ...
+%     DR_dir, drift_DR, 2, ...
+%     fullfile(figpath, '04_DR_R2'), ...
+%     showUncertaintyBands, uncertaintyBandAlpha);
 
 %% 4) confronto SR-DR Ct su rotore pw1
 plotSRvsDRPowertrain( ...
@@ -493,54 +500,101 @@ plotSRvsDRPowertrain( ...
     2, "Cq", ...
     fullfile(figpath, '08_Cq_SR_PW2_vs_DR_R2.png'), ...
     showUncertaintyBands, uncertaintyBandAlpha);
-%% 8) confronto SR-DR in termini di Delta_Ct
-plotDeltaCtGlobalVsSR( ...
+%% 7b) Potenza calcolata Q*omega - PW1
+plotPowerSRvsDRPowertrain( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+    1, "P_Qomega", ...
+    fullfile(figpath, '08b_P_Qomega_SR_PW1_vs_DR_R1.png'), ...
+    showUncertaintyBands, uncertaintyBandAlpha);
+
+%% 7c) Potenza calcolata Q*omega - PW2
+plotPowerSRvsDRPowertrain( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+    2, "P_Qomega", ...
+    fullfile(figpath, '08c_P_Qomega_SR_PW2_vs_DR_R2.png'), ...
+    showUncertaintyBands, uncertaintyBandAlpha);
+
+%% 7d) Potenza meccanica da CSV - PW1
+plotPowerSRvsDRPowertrain( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+    1, "P_mech_csv", ...
+    fullfile(figpath, '08d_P_mech_csv_SR_PW1_vs_DR_R1.png'), ...
+    showUncertaintyBands, uncertaintyBandAlpha);
+
+%% 7e) Potenza meccanica da CSV - PW2
+plotPowerSRvsDRPowertrain( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+    2, "P_mech_csv", ...
+    fullfile(figpath, '08e_P_mech_csv_SR_PW2_vs_DR_R2.png'), ...
+    showUncertaintyBands, uncertaintyBandAlpha);
+
+%% 7f) Potenza elettrica da CSV - PW1
+plotPowerSRvsDRPowertrain( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+    1, "P_elec_csv", ...
+    fullfile(figpath, '08f_P_elec_csv_SR_PW1_vs_DR_R1.png'), ...
+    showUncertaintyBands, uncertaintyBandAlpha);
+
+%% 7g) Potenza elettrica da CSV - PW2
+plotPowerSRvsDRPowertrain( ...
+    E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+    2, "P_elec_csv", ...
+    fullfile(figpath, '08g_P_elec_csv_SR_PW2_vs_DR_R2.png'), ...
+    showUncertaintyBands, uncertaintyBandAlpha);
+%% 7h) Ct standard deviation per singolo powertrain
+
+plotCtStdPowertrainVsSR( ...
     comparison, rpmAll, ...
-    fullfile(figpath, '09_Delta_Ct_global_vs_sR.png'));
-%% 8b) Delta Ct singolo powertrain: PW1
-plotDeltaCoeffPowertrainVsSR( ...
-    comparison, rpmAll, ...
-    1, "Ct", ...
-    fullfile(figpath, '10_Delta_Ct_PW1_vs_sR.png'));
+    fullfile(figpath, '14_Ct_std_single_powertrain_vs_sR.png'));
 
-%% 8c) Delta Ct singolo powertrain: PW2
-plotDeltaCoeffPowertrainVsSR( ...
-    comparison, rpmAll, ...
-    2, "Ct", ...
-    fullfile(figpath, '11_Delta_Ct_PW2_vs_sR.png'));
-
-%% 8d) Delta Cq singolo powertrain: PW1
-plotDeltaCoeffPowertrainVsSR( ...
-    comparison, rpmAll, ...
-    1, "Cq", ...
-    fullfile(figpath, '12_Delta_Cq_PW1_vs_sR.png'));
-
-%% 8e) Delta Cq singolo powertrain: PW2
-plotDeltaCoeffPowertrainVsSR( ...
-    comparison, rpmAll, ...
-    2, "Cq", ...
-    fullfile(figpath, '13_Delta_Cq_PW2_vs_sR.png'));
-%% 9) Reynolds
-
-fig9 = figure('Color','w','Name','Reynolds vs RPM');
-hold on; grid on; box on;
-
-Omega = 2*pi*rpmAll/60;
-Re_R = Omega * R^2 / nu;
-
-plot(rpmAll, Re_R, '-o', ...
-    'LineWidth', 1.6, ...
-    'DisplayName','$Re_R = \Omega R^2/\nu$');
-
-
-xlabel('RPM');
-ylabel('Reynolds number', 'Interpreter','latex');
-title('Reynolds number', 'Interpreter','latex');
-legend('Location','best', 'Interpreter','latex');
-
-exportgraphics(fig9, fullfile(figpath, 'Reynolds_vs_RPM.png'), 'Resolution', 300);
-
-disp('Analysis completed.');
+% %% 8) confronto SR-DR in termini di Delta_Ct
+% plotDeltaCtGlobalVsSR( ...
+%     comparison, rpmAll, ...
+%     fullfile(figpath, '09_Delta_Ct_global_vs_sR.png'));
+% %% 8b) Delta Ct singolo powertrain: PW1
+% plotDeltaCoeffPowertrainVsSR( ...
+%     comparison, rpmAll, ...
+%     1, "Ct", ...
+%     fullfile(figpath, '10_Delta_Ct_PW1_vs_sR.png'));
+% 
+% %% 8c) Delta Ct singolo powertrain: PW2
+% plotDeltaCoeffPowertrainVsSR( ...
+%     comparison, rpmAll, ...
+%     2, "Ct", ...
+%     fullfile(figpath, '11_Delta_Ct_PW2_vs_sR.png'));
+% 
+% %% 8d) Delta Cq singolo powertrain: PW1
+% plotDeltaCoeffPowertrainVsSR( ...
+%     comparison, rpmAll, ...
+%     1, "Cq", ...
+%     fullfile(figpath, '12_Delta_Cq_PW1_vs_sR.png'));
+% 
+% %% 8e) Delta Cq singolo powertrain: PW2
+% plotDeltaCoeffPowertrainVsSR( ...
+%     comparison, rpmAll, ...
+%     2, "Cq", ...
+%     fullfile(figpath, '13_Delta_Cq_PW2_vs_sR.png'));
+% %% 9) Reynolds
+% 
+% fig9 = figure('Color','w','Name','Reynolds vs RPM');
+% hold on; grid on; box on;
+% 
+% Omega = 2*pi*rpmAll/60;
+% Re_R = Omega * R^2 / nu;
+% 
+% plot(rpmAll, Re_R, '-o', ...
+%     'LineWidth', 1.6, ...
+%     'DisplayName','$Re_R = \Omega R^2/\nu$');
+% 
+% 
+% xlabel('RPM');
+% ylabel('Reynolds number', 'Interpreter','latex');
+% title('Reynolds number', 'Interpreter','latex');
+% legend('Location','best', 'Interpreter','latex');
+% 
+% exportgraphics(fig9, fullfile(figpath, 'Reynolds_vs_RPM.png'), 'Resolution', 300);
+% 
+% disp('Analysis completed.');
 %% ============================================================
 %  LOCAL FUNCTIONS
 % =============================================================
@@ -793,13 +847,24 @@ function out = extractSingleRotorData(DB, conditionName)
 
     Ct = NaN(n,1);
     std_Ct = NaN(n,1);
+
     Cq = NaN(n,1);
     std_Cq = NaN(n,1);
+
     T_N = NaN(n,1);
     std_TN = NaN(n,1);
+
     Q_abs_Nm = NaN(n,1);
     std_Q_abs_Nm = NaN(n,1);
-    P_W = NaN(n,1);
+
+    P_W = NaN(n,1);  % potenza calcolata come Q*omega
+
+    P_mech_csv_W = NaN(n,1);
+    std_P_mech_csv_W = NaN(n,1);
+
+    P_elec_csv_W = NaN(n,1);
+    std_P_elec_csv_W = NaN(n,1);
+
     RPM_mean = NaN(n,1);
     RPM_used = NaN(n,1);
 
@@ -830,13 +895,24 @@ function out = extractSingleRotorData(DB, conditionName)
 
             Ct(i)       = getNumericValue(DB, i, 'Ct1');
             std_Ct(i)   = getNumericValue(DB, i, 'Ct1_std');
+
             Cq(i)       = getNumericValue(DB, i, 'Cq1');
             std_Cq(i)   = getNumericValue(DB, i, 'Cq1_std');
+
             T_N(i)      = getNumericValue(DB, i, 'T1_mean_N');
             std_TN(i)   = getNumericValue(DB, i, 'T1_std_N');
+
             Q_abs_Nm(i) = getNumericValue(DB, i, 'Q1_abs_mean_Nm');
-            std_Q_abs_Nm(i)   = getNumericValue(DB, i, 'Q1_std_Nm');
-            P_W(i)      = getNumericValue(DB, i, 'P1_mean_W');
+            std_Q_abs_Nm(i) = getNumericValue(DB, i, 'Q1_abs_std_Nm');
+
+            P_W(i) = getNumericValue(DB, i, 'P1_mean_W');
+
+            P_mech_csv_W(i) = getNumericValue(DB, i, 'P1_mech_csv_mean_W');
+            std_P_mech_csv_W(i) = getNumericValue(DB, i, 'P1_mech_csv_std_W');
+
+            P_elec_csv_W(i) = getNumericValue(DB, i, 'P1_elec_csv_mean_W');
+            std_P_elec_csv_W(i) = getNumericValue(DB, i, 'P1_elec_csv_std_W');
+
             RPM_mean(i) = getNumericValue(DB, i, 'RPM1_mean');
             RPM_used(i) = getNumericValue(DB, i, 'RPM1_used');
 
@@ -844,13 +920,24 @@ function out = extractSingleRotorData(DB, conditionName)
 
             Ct(i)       = getNumericValue(DB, i, 'Ct2');
             std_Ct(i)   = getNumericValue(DB, i, 'Ct2_std');
+
             Cq(i)       = getNumericValue(DB, i, 'Cq2');
             std_Cq(i)   = getNumericValue(DB, i, 'Cq2_std');
+
             T_N(i)      = getNumericValue(DB, i, 'T2_mean_N');
             std_TN(i)   = getNumericValue(DB, i, 'T2_std_N');
+
             Q_abs_Nm(i) = getNumericValue(DB, i, 'Q2_abs_mean_Nm');
-            std_Q_abs_Nm(i)   = getNumericValue(DB, i, 'Q2_std_Nm');
-            P_W(i)      = getNumericValue(DB, i, 'P2_mean_W');
+            std_Q_abs_Nm(i) = getNumericValue(DB, i, 'Q2_abs_std_Nm');
+
+            P_W(i) = getNumericValue(DB, i, 'P2_mean_W');
+
+            P_mech_csv_W(i) = getNumericValue(DB, i, 'P2_mech_csv_mean_W');
+            std_P_mech_csv_W(i) = getNumericValue(DB, i, 'P2_mech_csv_std_W');
+
+            P_elec_csv_W(i) = getNumericValue(DB, i, 'P2_elec_csv_mean_W');
+            std_P_elec_csv_W(i) = getNumericValue(DB, i, 'P2_elec_csv_std_W');
+
             RPM_mean(i) = getNumericValue(DB, i, 'RPM2_mean');
             RPM_used(i) = getNumericValue(DB, i, 'RPM2_used');
 
@@ -859,7 +946,14 @@ function out = extractSingleRotorData(DB, conditionName)
     end
 
     out = table(condition, filename, sourceDB, DirectionLabel, RPM_target, rotorID, ...
-        Ct, std_Ct, Cq,std_Cq, T_N, std_TN, Q_abs_Nm, std_Q_abs_Nm, P_W, RPM_mean, RPM_used);
+        Ct, std_Ct, ...
+        Cq, std_Cq, ...
+        T_N, std_TN, ...
+        Q_abs_Nm, std_Q_abs_Nm, ...
+        P_W, ...
+        P_mech_csv_W, std_P_mech_csv_W, ...
+        P_elec_csv_W, std_P_elec_csv_W, ...
+        RPM_mean, RPM_used);
 
 end
 
@@ -889,6 +983,13 @@ function out = extractDoubleRotorData(DB)
     std_Q_abs_Nm = NaN(2*n,1);
 
     P_W = NaN(2*n,1);
+
+    P_mech_csv_W = NaN(2*n,1);
+    std_P_mech_csv_W = NaN(2*n,1);
+
+    P_elec_csv_W = NaN(2*n,1);
+    std_P_elec_csv_W = NaN(2*n,1);
+
     RPM_mean = NaN(2*n,1);
     RPM_used = NaN(2*n,1);
 
@@ -927,10 +1028,17 @@ function out = extractDoubleRotorData(DB)
                 T_N(r)      = getNumericValue(DB, i, 'T1_mean_N');
                 std_TN(r)   = getNumericValue(DB, i, 'T1_std_N');
 
-                Q_abs_Nm(r)     = getNumericValue(DB, i, 'Q1_abs_mean_Nm');
-                std_Q_abs_Nm(r) = getNumericValue(DB, i, 'Q1_std_Nm');
+                Q_abs_Nm(r) = getNumericValue(DB, i, 'Q1_abs_mean_Nm');
+                std_Q_abs_Nm(r) = getNumericValue(DB, i, 'Q1_abs_std_Nm');
 
-                P_W(r)      = getNumericValue(DB, i, 'P1_mean_W');
+                P_W(r) = getNumericValue(DB, i, 'P1_mean_W');
+
+                P_mech_csv_W(r) = getNumericValue(DB, i, 'P1_mech_csv_mean_W');
+                std_P_mech_csv_W(r) = getNumericValue(DB, i, 'P1_mech_csv_std_W');
+
+                P_elec_csv_W(r) = getNumericValue(DB, i, 'P1_elec_csv_mean_W');
+                std_P_elec_csv_W(r) = getNumericValue(DB, i, 'P1_elec_csv_std_W');
+
                 RPM_mean(r) = getNumericValue(DB, i, 'RPM1_mean');
                 RPM_used(r) = getNumericValue(DB, i, 'RPM1_used');
 
@@ -945,10 +1053,17 @@ function out = extractDoubleRotorData(DB)
                 T_N(r)      = getNumericValue(DB, i, 'T2_mean_N');
                 std_TN(r)   = getNumericValue(DB, i, 'T2_std_N');
 
-                Q_abs_Nm(r)     = getNumericValue(DB, i, 'Q2_abs_mean_Nm');
-                std_Q_abs_Nm(r) = getNumericValue(DB, i, 'Q2_std_Nm');
+                Q_abs_Nm(r) = getNumericValue(DB, i, 'Q2_abs_mean_Nm');
+                std_Q_abs_Nm(r) = getNumericValue(DB, i, 'Q2_abs_std_Nm');
 
-                P_W(r)      = getNumericValue(DB, i, 'P2_mean_W');
+                P_W(r) = getNumericValue(DB, i, 'P2_mean_W');
+
+                P_mech_csv_W(r) = getNumericValue(DB, i, 'P2_mech_csv_mean_W');
+                std_P_mech_csv_W(r) = getNumericValue(DB, i, 'P2_mech_csv_std_W');
+
+                P_elec_csv_W(r) = getNumericValue(DB, i, 'P2_elec_csv_mean_W');
+                std_P_elec_csv_W(r) = getNumericValue(DB, i, 'P2_elec_csv_std_W');
+
                 RPM_mean(r) = getNumericValue(DB, i, 'RPM2_mean');
                 RPM_used(r) = getNumericValue(DB, i, 'RPM2_used');
 
@@ -964,7 +1079,10 @@ function out = extractDoubleRotorData(DB)
         Cq, std_Cq, ...
         T_N, std_TN, ...
         Q_abs_Nm, std_Q_abs_Nm, ...
-        P_W, RPM_mean, RPM_used);
+        P_W, ...
+        P_mech_csv_W, std_P_mech_csv_W, ...
+        P_elec_csv_W, std_P_elec_csv_W, ...
+        RPM_mean, RPM_used);
 
 end
 
@@ -997,6 +1115,8 @@ function out = aggregateByKeys(T, keyVars)
     out.Q_abs_Nm_mean = splitapply(@meanOmitNaN, T.Q_abs_Nm, G);
 
     out.P_W_mean = splitapply(@meanOmitNaN, T.P_W, G);
+    out.P_mech_csv_W_mean = splitapply(@meanOmitNaN, T.P_mech_csv_W, G);
+    out.P_elec_csv_W_mean = splitapply(@meanOmitNaN, T.P_elec_csv_W, G);
 
     out.RPM_mean = splitapply(@meanOmitNaN, T.RPM_mean, G);
     out.RPM_used = splitapply(@meanOmitNaN, T.RPM_used, G);
@@ -1008,6 +1128,8 @@ function out = aggregateByKeys(T, keyVars)
 
     out.T_N_std = splitapply(@meanOmitNaN, T.std_TN, G);
     out.Q_abs_Nm_std = splitapply(@meanOmitNaN, T.std_Q_abs_Nm, G);
+    out.P_mech_csv_W_std = splitapply(@meanOmitNaN, T.std_P_mech_csv_W, G);
+    out.P_elec_csv_W_std = splitapply(@meanOmitNaN, T.std_P_elec_csv_W, G);
 
     % Numero di righe/prove che finiscono nello stesso gruppo.
     % Se è sempre 1, vuol dire che non stai mediando repliche.
@@ -1118,6 +1240,8 @@ function out = averageDirections(Tdir, keyVarsNoDirection)
     out.Q_abs_Nm_mean = splitapply(@meanOmitNaN, Tdir.Q_abs_Nm_mean, G);
 
     out.P_W_mean = splitapply(@meanOmitNaN, Tdir.P_W_mean, G);
+    out.P_mech_csv_W_mean = splitapply(@meanOmitNaN, Tdir.P_mech_csv_W_mean, G);
+    out.P_elec_csv_W_mean = splitapply(@meanOmitNaN, Tdir.P_elec_csv_W_mean, G);
 
     out.RPM_mean = splitapply(@meanOmitNaN, Tdir.RPM_mean, G);
     out.RPM_used = splitapply(@meanOmitNaN, Tdir.RPM_used, G);
@@ -1140,6 +1264,8 @@ function out = averageDirections(Tdir, keyVarsNoDirection)
 
     out.T_N_std = splitapply(@meanOmitNaN, Tdir.T_N_std, G);
     out.Q_abs_Nm_std = splitapply(@meanOmitNaN, Tdir.Q_abs_Nm_std, G);
+    out.P_mech_csv_W_std = splitapply(@meanOmitNaN, Tdir.P_mech_csv_W_std, G);
+    out.P_elec_csv_W_std = splitapply(@meanOmitNaN, Tdir.P_elec_csv_W_std, G);
 
     % ============================================================
     % Numero di direzioni effettivamente usate
@@ -1411,7 +1537,6 @@ function plotDRRotorUpDownAndDriftCt(DR_dir, drift_DR, rotorID, outPrefix, showU
     sR_values = unique(DR_dir.s_over_R);
     sR_values = sR_values(~isnan(sR_values));
     sR_values = sort(sR_values);
-
     for isr = 1:numel(sR_values)
 
         sR = sR_values(isr);
@@ -1807,6 +1932,484 @@ function plotDeltaCoeffPowertrainVsSR(comparison, rpmAll, powertrainID, coeffNam
     title(titleText, 'Interpreter','latex');
 
     legend('Location','best', 'Interpreter','latex');
+
+    exportgraphics(fig, outFile, 'Resolution', 300);
+
+end
+function plotPowerSRvsDRPowertrain(E_SR_mean, EP_SR_mean, DR_mean, sR_values, ...
+                                   powertrainID, powerName, outFile, ...
+                                   showUncertaintyBands, bandAlpha)
+
+    if nargin < 8 || isempty(showUncertaintyBands)
+        showUncertaintyBands = true;
+    end
+
+    if nargin < 9 || isempty(bandAlpha)
+        bandAlpha = 0.18;
+    end
+
+    powerName = string(powerName);
+
+    switch powerName
+
+        case "P_Qomega"
+            yVar = 'P_W_mean';
+            sVar = '';
+            yLabelText = '$P_{Q\omega}$ [W]';
+            titlePrefix = '$P_{Q\omega}$ from cleaned $Q \cdot \omega$';
+
+        case "P_mech_csv"
+            yVar = 'P_mech_csv_W_mean';
+            sVar = 'P_mech_csv_W_std';
+            yLabelText = '$P_{mech,csv}$ [W]';
+            titlePrefix = '$P_{mech}$ from CSV';
+
+        case "P_elec_csv"
+            yVar = 'P_elec_csv_W_mean';
+            sVar = 'P_elec_csv_W_std';
+            yLabelText = '$P_{elec,csv}$ [W]';
+            titlePrefix = '$P_{elec}$ from CSV';
+
+        otherwise
+            error('Unknown powerName: %s', powerName);
+
+    end
+
+    if powertrainID == 1
+        SR_T = EP_SR_mean;
+        rotorID = 1;
+        srLabel = 'SR PW1 = EP\_SR';
+    elseif powertrainID == 2
+        SR_T = E_SR_mean;
+        rotorID = 2;
+        srLabel = 'SR PW2 = E\_SR';
+    else
+        error('powertrainID must be 1 or 2.');
+    end
+
+    fig = figure('Color','w', ...
+        'Name', sprintf('%s SR PW%d vs DR R%d', powerName, powertrainID, rotorID));
+
+    hold on; grid on; box on;
+
+    xSR = SR_T.RPM_used;
+    ySR = SR_T.(yVar);
+
+    if ~isempty(sVar) && ismember(sVar, SR_T.Properties.VariableNames)
+        sSR = SR_T.(sVar);
+    else
+        sSR = NaN(size(ySR));
+    end
+
+    plotBandLine(xSR, ySR, sSR, '-^', srLabel, ...
+        showUncertaintyBands, bandAlpha);
+
+    for isr = 1:numel(sR_values)
+
+        sR = sR_values(isr);
+
+        T = DR_mean(DR_mean.s_over_R == sR & DR_mean.rotorID == rotorID, :);
+
+        if isempty(T)
+            continue;
+        end
+
+        xDR = T.RPM_used;
+        yDR = T.(yVar);
+
+        if ~isempty(sVar) && ismember(sVar, T.Properties.VariableNames)
+            sDR = T.(sVar);
+        else
+            sDR = NaN(size(yDR));
+        end
+
+        plotBandLine(xDR, yDR, sDR, '--o', ...
+            sprintf('DR R%d, s/R = %.3g', rotorID, sR), ...
+            showUncertaintyBands, bandAlpha);
+
+    end
+
+    xlabel('$RPM_{used}$', 'Interpreter','latex');
+    ylabel(yLabelText, 'Interpreter','latex');
+
+    title(sprintf('%s: SR PW%d vs DR R%d', ...
+        titlePrefix, powertrainID, rotorID), 'Interpreter','latex');
+
+    legend('Location','best', 'Interpreter','latex');
+
+    exportgraphics(fig, outFile, 'Resolution', 300);
+
+end
+
+function comparison_exactRPM = buildExactRPMComparison(E_SR_mean, EP_SR_mean, DR_mean, sR_values)
+
+    SR_PW1_curve = makeExactCurveFromMeanTable(EP_SR_mean);
+    SR_PW2_curve = makeExactCurveFromMeanTable(E_SR_mean);
+
+    SR_MEAN_curve = makeMeanExactCurve(SR_PW1_curve, SR_PW2_curve);
+
+    comparison_exactRPM = table();
+
+    for isr = 1:numel(sR_values)
+
+        sR = sR_values(isr);
+
+        DR_R1_curve = makeExactCurveFromMeanTable( ...
+            DR_mean(DR_mean.s_over_R == sR & DR_mean.rotorID == 1, :));
+
+        DR_R2_curve = makeExactCurveFromMeanTable( ...
+            DR_mean(DR_mean.s_over_R == sR & DR_mean.rotorID == 2, :));
+
+        DR_MEAN_curve = makeMeanExactCurve(DR_R1_curve, DR_R2_curve);
+
+        comparison_exactRPM = addExactRowsForPair( ...
+            comparison_exactRPM, "PW1", 1, sR, SR_PW1_curve, DR_R1_curve);
+
+        comparison_exactRPM = addExactRowsForPair( ...
+            comparison_exactRPM, "PW2", 2, sR, SR_PW2_curve, DR_R2_curve);
+
+        comparison_exactRPM = addExactRowsForPair( ...
+            comparison_exactRPM, "MEAN", NaN, sR, SR_MEAN_curve, DR_MEAN_curve);
+
+    end
+
+end
+
+function C = makeExactCurveFromMeanTable(T)
+
+    C = table();
+
+    if isempty(T)
+        return;
+    end
+
+    needed = { ...
+        'RPM_target', ...
+        'RPM_used', ...
+        'Ct_mean', ...
+        'Cq_mean', ...
+        'T_N_mean', ...
+        'Q_abs_Nm_mean', ...
+        'P_W_mean', ...
+        'P_mech_csv_W_mean', ...
+        'P_elec_csv_W_mean'};
+
+    for k = 1:numel(needed)
+        if ~ismember(needed{k}, T.Properties.VariableNames)
+            T.(needed{k}) = NaN(height(T),1);
+        end
+    end
+
+    C.RPM_target = T.RPM_target;
+    C.RPM_used   = T.RPM_used;
+
+    C.Ct = T.Ct_mean;
+    C.Cq = T.Cq_mean;
+
+    C.T_N = T.T_N_mean;
+    C.Q_abs_Nm = T.Q_abs_Nm_mean;
+
+    C.P_Qomega_W   = T.P_W_mean;
+    C.P_mech_csv_W = T.P_mech_csv_W_mean;
+    C.P_elec_csv_W = T.P_elec_csv_W_mean;
+
+    valid = isfinite(C.RPM_target) & isfinite(C.RPM_used);
+    C = C(valid,:);
+
+    if ~isempty(C)
+        C = sortrows(C, 'RPM_used');
+    end
+
+end
+
+function Cmean = makeMeanExactCurve(C1, C2)
+
+    Cmean = table();
+
+    if isempty(C1) && isempty(C2)
+        return;
+    end
+
+    targets = unique([C1.RPM_target; C2.RPM_target]);
+    targets = sort(targets(isfinite(targets)));
+
+    vars = ["RPM_used", "Ct", "Cq", "T_N", "Q_abs_Nm", ...
+            "P_Qomega_W", "P_mech_csv_W", "P_elec_csv_W"];
+
+    Cmean.RPM_target = targets;
+
+    for iv = 1:numel(vars)
+
+        var = vars(iv);
+        y = NaN(numel(targets),1);
+
+        for i = 1:numel(targets)
+
+            rpmT = targets(i);
+
+            y(i) = mean([ ...
+                getCurveAtTarget(C1, rpmT, var), ...
+                getCurveAtTarget(C2, rpmT, var)], 'omitnan');
+
+        end
+
+        Cmean.(char(var)) = y;
+
+    end
+
+    valid = isfinite(Cmean.RPM_target) & isfinite(Cmean.RPM_used);
+    Cmean = Cmean(valid,:);
+
+    if ~isempty(Cmean)
+        Cmean = sortrows(Cmean, 'RPM_used');
+    end
+
+end
+
+function Tbig = addExactRowsForPair(Tbig, comparisonType, powertrainID, sR, SR_curve, DR_curve)
+
+    if isempty(SR_curve) || isempty(DR_curve)
+        return;
+    end
+
+    targets = intersect(SR_curve.RPM_target, DR_curve.RPM_target);
+    targets = sort(targets(isfinite(targets)));
+
+    vars = ["Ct", "Cq", "T_N", "Q_abs_Nm", ...
+            "P_Qomega_W", "P_mech_csv_W", "P_elec_csv_W"];
+
+    for it = 1:numel(targets)
+
+        rpmTarget = targets(it);
+
+        rpmSR = getCurveAtTarget(SR_curve, rpmTarget, "RPM_used");
+        rpmDR = getCurveAtTarget(DR_curve, rpmTarget, "RPM_used");
+
+        if ~isfinite(rpmSR) || ~isfinite(rpmDR)
+            continue;
+        end
+
+        rpmCommon = 0.5*(rpmSR + rpmDR);
+
+        row = table();
+
+        row.comparisonType = string(comparisonType);
+        row.powertrainID = powertrainID;
+        row.s_over_R = sR;
+        row.RPM_target = rpmTarget;
+
+        row.RPM_SR_used_nominal = rpmSR;
+        row.RPM_DR_used_nominal = rpmDR;
+        row.RPM_common = rpmCommon;
+        row.RPM_common_definition = "0.5*(RPM_SR_used_nominal + RPM_DR_used_nominal)";
+
+        for iv = 1:numel(vars)
+
+            var = vars(iv);
+            varChar = char(var);
+
+            SR_val = interpExactCurve(SR_curve, rpmCommon, var);
+            DR_val = interpExactCurve(DR_curve, rpmCommon, var);
+
+            row.(sprintf('%s_SR', varChar)) = SR_val;
+            row.(sprintf('%s_DR', varChar)) = DR_val;
+            row.(sprintf('d%s', varChar)) = SR_val - DR_val;
+            row.(sprintf('d%s_percent', varChar)) = percentLossLocal(SR_val, DR_val);
+
+        end
+
+        if isempty(Tbig)
+            Tbig = row;
+        else
+            Tbig = [Tbig; row];
+        end
+
+    end
+
+end
+
+function val = getCurveAtTarget(C, rpmTarget, varName)
+
+    val = NaN;
+
+    if isempty(C) || ~ismember(char(varName), C.Properties.VariableNames)
+        return;
+    end
+
+    idx = C.RPM_target == rpmTarget;
+
+    if any(idx)
+        val = mean(C.(char(varName))(idx), 'omitnan');
+    end
+
+end
+
+function val = interpExactCurve(C, rpm, varName)
+
+    val = NaN;
+
+    varName = char(varName);
+
+    if isempty(C) || ~ismember(varName, C.Properties.VariableNames)
+        return;
+    end
+
+    x = C.RPM_used;
+    y = C.(varName);
+
+    valid = isfinite(x) & isfinite(y);
+
+    x = x(valid);
+    y = y(valid);
+
+    if numel(x) < 1
+        return;
+    end
+
+    [x, ord] = sort(x);
+    y = y(ord);
+
+    [x, ia] = unique(x, 'stable');
+    y = y(ia);
+
+    if numel(x) == 1
+        val = y(1);
+        return;
+    end
+
+    % Per evitare NaN ai bordi se RPM_common cade pochi rpm fuori dal range.
+    edgeTolRPM = 50;
+
+    if rpm < min(x) - edgeTolRPM || rpm > max(x) + edgeTolRPM
+        return;
+    end
+
+    if rpm < min(x)
+        val = y(1);
+    elseif rpm > max(x)
+        val = y(end);
+    else
+        val = interp1(x, y, rpm, 'linear', NaN);
+    end
+
+end
+
+function p = percentLossLocal(SR, DR)
+
+    if ~isfinite(SR) || ~isfinite(DR) || SR == 0
+        p = NaN;
+    else
+        p = 100*(SR - DR)/SR;
+    end
+
+end
+
+function plotCtStdPowertrainVsSR(comparison, rpmAll, outFile)
+
+    requiredVars = { ...
+        's_over_R', ...
+        'RPM', ...
+        'Ct_SR_PW1_std', ...
+        'Ct_DR_R1_std', ...
+        'Ct_SR_PW2_std', ...
+        'Ct_DR_R2_std'};
+
+    for iv = 1:numel(requiredVars)
+        if ~ismember(requiredVars{iv}, comparison.Properties.VariableNames)
+            error('Variable %s not found in comparison table.', requiredVars{iv});
+        end
+    end
+
+    rpmList = rpmAll(:);
+    rpmList = rpmList(isfinite(rpmList));
+
+    fig = figure('Color','w', ...
+        'Name','Ct standard deviation single powertrain');
+
+    tiledlayout(2,1,'Padding','compact','TileSpacing','compact');
+
+    for powertrainID = 1:2
+
+        nexttile;
+        hold on; grid on; box on;
+
+        if powertrainID == 1
+
+            srStdVar = 'Ct_SR_PW1_std';
+            drStdVar = 'Ct_DR_R1_std';
+
+            titleText = '$\sigma(C_T)$: SR PW1 vs DR R1';
+            srLabelBase = 'SR PW1';
+            drLabelBase = 'DR R1';
+
+        else
+
+            srStdVar = 'Ct_SR_PW2_std';
+            drStdVar = 'Ct_DR_R2_std';
+
+            titleText = '$\sigma(C_T)$: SR PW2 vs DR R2';
+            srLabelBase = 'SR PW2';
+            drLabelBase = 'DR R2';
+
+        end
+
+        colors = lines(numel(rpmList));
+
+        for irpm = 1:numel(rpmList)
+
+            rpm = rpmList(irpm);
+
+            idx = comparison.RPM == rpm;
+
+            if ~any(idx)
+                continue;
+            end
+
+            x = comparison.s_over_R(idx);
+
+            yDR = comparison.(drStdVar)(idx);
+            ySR = comparison.(srStdVar)(idx);
+
+            valid = isfinite(x) & isfinite(yDR) & isfinite(ySR);
+
+            x = x(valid);
+            yDR = yDR(valid);
+            ySR = ySR(valid);
+
+            if isempty(x)
+                continue;
+            end
+
+            [x, ord] = sort(x);
+            yDR = yDR(ord);
+            ySR = ySR(ord);
+
+            thisColor = colors(irpm,:);
+
+            % DR: sigma del singolo rotore in configurazione double rotor
+            plot(x, yDR, '-o', ...
+                'Color', thisColor, ...
+                'LineWidth', 1.5, ...
+                'MarkerSize', 6, ...
+                'DisplayName', sprintf('%s, %d RPM', drLabelBase, rpm));
+
+            % SR: sigma del powertrain corrispondente.
+            % La curva è orizzontale perché SR non dipende da s/R.
+            plot(x, ySR, '--s', ...
+                'Color', thisColor, ...
+                'LineWidth', 1.5, ...
+                'MarkerSize', 6, ...
+                'DisplayName', sprintf('%s, %d RPM', srLabelBase, rpm));
+
+        end
+
+        xlabel('$s/R$', 'Interpreter','latex');
+        ylabel('$\sigma(C_T)$', 'Interpreter','latex');
+        title(titleText, 'Interpreter','latex');
+
+        legend('Location','bestoutside', 'Interpreter','latex');
+
+    end
 
     exportgraphics(fig, outFile, 'Resolution', 300);
 
